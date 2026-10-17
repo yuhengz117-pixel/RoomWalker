@@ -1,6 +1,6 @@
 bl_info = {
     'name': 'RoomWalker — Keyboard & Xbox', 'author': 'yuhengz117-pixel (AI-assisted)',
-    'version': (0, 1, 7), 'blender': (4, 5, 0),
+    'version': (0, 1, 8), 'blender': (4, 5, 0),
     'location': '3D View > Sidebar > RoomWalker',
     'description': 'First-person walking with gravity and collisions; gamepad mode leaves editing input free',
     'category': '3D View',
@@ -308,6 +308,12 @@ class Runtime:
         self.view_signature = self.signature()
         self.area.tag_redraw()
 
+    def cycle_shading(self, direction):
+        modes = ('WIREFRAME', 'SOLID', 'MATERIAL', 'RENDERED')
+        current = self.space.shading.type
+        self.space.shading.type = modes[(modes.index(current) + direction) % len(modes)]
+        self.area.tag_redraw()
+
     def signature(self):
         rv = self.space.region_3d
         return tuple(rv.view_location)+tuple(rv.view_rotation)+(rv.view_distance,)
@@ -365,6 +371,9 @@ class Runtime:
                 return 1/30
             self.apply_zoom(float(data.get('lt', 0)))
             pressed = lambda key: data.get(key, False) and not self.previous_buttons.get(key, False)
+            shading_direction = int(bool(pressed('rb'))) - int(bool(pressed('lb')))
+            if shading_direction:
+                self.cycle_shading(shading_direction)
             if pressed('menu'):
                 self.paused = not self.paused
             if pressed('y') and not self.paused:
@@ -633,6 +642,7 @@ class RW_PT_panel(bpy.types.Panel):
             box.label(text='A: jump | L3 click: sprint')
             box.label(text='Y: walk / fly | Menu: pause')
             box.label(text='RT: throttle | LT: 2x zoom')
+            box.label(text='LB / RB: previous / next shading')
             box.label(text='Fly toward look direction')
             box.label(text='Hold A up / B down')
             box.label(text='X: refresh | Stop: panel button')

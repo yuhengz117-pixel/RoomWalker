@@ -4,7 +4,7 @@
 
 RoomWalker is a small, free, open-source Blender add-on for first-person architectural walkthroughs and spatial design. Walk with gravity and collision detection, switch to flight, control movement speed with the right trigger, and zoom with the left trigger.
 
-**Prototype release · v0.1.7 · MIT license**
+**Prototype release · v0.1.8 · MIT license**
 
 [Download the latest release](https://github.com/yuhengz117-pixel/RoomWalker/releases/latest) · [Report a bug](https://github.com/yuhengz117-pixel/RoomWalker/issues)
 
@@ -33,7 +33,7 @@ When reviewing a large space, switching between orbit navigation and editing int
 
 ## Install
 
-1. Download **roomwalker-0.1.7-macos-arm64.zip** from [Releases](https://github.com/yuhengz117-pixel/RoomWalker/releases/latest). Use the release asset rather than GitHub's generic source archive.
+1. Download **roomwalker-0.1.8-macos-arm64.zip** from [Releases](https://github.com/yuhengz117-pixel/RoomWalker/releases/latest). Use the release asset rather than GitHub's generic source archive.
 2. In Blender, open **Edit → Preferences → Add-ons**.
 3. Open the menu arrow and choose **Install from Disk…**, then select the ZIP.
 4. Enable **RoomWalker — Keyboard & Xbox**.
@@ -54,9 +54,12 @@ The native helper is a local, ad-hoc-signed Apple Silicon executable. It is not 
 | Y | Toggle walking / flight |
 | RT | Analog throttle; alone, drive forward along the view direction |
 | LT | Hold for analog zoom, up to 2×; release to restore |
+| LB / RB | Previous / next viewport shading mode |
 | X | Rebuild collisions after editing geometry |
 | Menu / ≡ | Pause / resume navigation |
 | Sidebar **Stop** | End the session |
+
+LB / RB cycle through **Wireframe → Solid → Material Preview → Rendered**, wrapping at either end. Each press changes one mode; holding does not repeat. Shading switching also works while navigation is paused.
 
 When RT and the left stick are both used, the stick sets direction and RT sets speed. RT overrides sprint so the two accelerators do not stack. Look upward and move forward to fly upward; look downward to descend. A/B also provide direct vertical movement.
 
