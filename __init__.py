@@ -1,6 +1,6 @@
 bl_info = {
     'name': 'RoomWalker — Keyboard & Xbox', 'author': 'yuhengz117-pixel (AI-assisted)',
-    'version': (0, 1, 8), 'blender': (4, 5, 0),
+    'version': (0, 1, 10), 'blender': (4, 5, 0),
     'location': '3D View > Sidebar > RoomWalker',
     'description': 'First-person walking with gravity and collisions; gamepad mode leaves editing input free',
     'category': '3D View',
@@ -20,11 +20,37 @@ from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, FloatProperty, EnumProperty, PointerProperty, StringProperty
 
 UP = Vector((0, 0, 1))
+# Blender's interactive DOLLY zoom produces NaN from a zero orbit distance.
+# Keep a positive pivot distance, offsetting the pivot to preserve the eye.
+WALK_VIEW_DISTANCE = 1.0
 _runtime = None
 _status = 'Ready'
 
 
+def finite(values):
+    return all(math.isfinite(v) for v in values)
+
+
+def axis(value):
+    try:
+        value = float(value)
+        return max(-1.0, min(1.0, value)) if math.isfinite(value) else 0.0
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+
+
+def diagnostic(message):
+    import logging
+    logging.getLogger('roomwalker').error(message)
+    try:
+        with (Path(__file__).parent / 'roomwalker-errors.log').open('a') as log:
+            log.write(time.strftime('%Y-%m-%d %H:%M:%S ') + message + '\n')
+    except OSError:
+        pass
+
+
 def deadzone(x, y, zone):
+    x, y = axis(x), axis(y)
     length = math.hypot(x, y)
     if length <= zone:
         return 0.0, 0.0
@@ -272,9 +298,15 @@ class Runtime:
         self.original_lens = self.space.lens
         self.original_clip = self.space.clip_start
         s = self.scene.roomwalker
-        self.world.build(context, s)
         rv = self.space.region_3d
-        eye = rv.view_matrix.inverted().translation
+        # Editable properties are authoritative; the matrix may lag a redraw.
+        signature = tuple(rv.view_location)+tuple(rv.view_rotation)+(rv.view_distance,)
+        if not finite(signature) or rv.view_rotation.magnitude < 1e-6:
+            diagnostic('startup: invalid viewport ' + repr(signature))
+            raise RuntimeError('Invalid viewport coordinates; reset the view before walking')
+        self.last_valid_view = signature
+        self.world.build(context, s)
+        eye = rv.view_location + rv.view_rotation @ Vector((0, 0, rv.view_distance))
         forward = rv.view_rotation @ Vector((0, 0, -1))
         yaw = math.atan2(-forward.x, forward.y)
         pitch = math.asin(max(-1, min(1, forward.z)))
@@ -289,6 +321,9 @@ class Runtime:
             z = self.world.floor(feet, 50, 200)
             if z is not None:
                 feet.z = z+.002
+        if not finite(tuple(feet)+(yaw, pitch)):
+            diagnostic('startup: invalid spawn ' + repr(tuple(feet)+(yaw, pitch)))
+            raise RuntimeError('Invalid walking spawn position')
         self.player = Player(feet, yaw, pitch)
         self.space.lens = 50
         self.space.clip_start = .03
@@ -299,13 +334,19 @@ class Runtime:
 
     def view(self):
         p, s = self.player, self.scene.roomwalker
+        if not finite(tuple(p.feet)+(p.yaw, p.pitch, p.vz)):
+            diagnostic('view: invalid player ' + repr(tuple(p.feet)+(p.yaw, p.pitch, p.vz)))
+            self.restore_view()
+            raise RuntimeError('Invalid player coordinates; previous view restored')
         forward = Vector((-math.sin(p.yaw)*math.cos(p.pitch), math.cos(p.yaw)*math.cos(p.pitch), math.sin(p.pitch)))
         rv = self.space.region_3d
         rv.view_perspective = 'PERSP'
         rv.view_rotation = forward.to_track_quat('-Z', 'Y')
-        rv.view_distance = 0
-        rv.view_location = p.feet+UP*s.eye_height
+        rv.view_distance = WALK_VIEW_DISTANCE
+        eye = p.feet+UP*s.eye_height
+        rv.view_location = eye - rv.view_rotation @ Vector((0, 0, WALK_VIEW_DISTANCE))
         self.view_signature = self.signature()
+        self.last_valid_view = self.view_signature
         self.area.tag_redraw()
 
     def cycle_shading(self, direction):
@@ -318,8 +359,21 @@ class Runtime:
         rv = self.space.region_3d
         return tuple(rv.view_location)+tuple(rv.view_rotation)+(rv.view_distance,)
 
+    def restore_view(self):
+        saved = self.last_valid_view
+        rv = self.space.region_3d
+        rv.view_rotation = Quaternion(saved[3:7])
+        rv.view_distance = saved[7]
+        rv.view_location = Vector(saved[:3])
+        self.area.tag_redraw()
+
     def adopt_external_view(self):
         current = self.signature()
+        if not finite(current) or self.space.region_3d.view_rotation.magnitude < 1e-6:
+            diagnostic('external view: invalid coordinates ' + repr(current))
+            self.restore_view()
+            raise RuntimeError('Invalid external view; previous view restored')
+        self.last_valid_view = current
         if self.view_signature is None or any(abs(a-b)>1e-5 for a,b in zip(current, self.view_signature)):
             rv = self.space.region_3d
             # Read editable view properties directly; view_matrix can lag one redraw.
@@ -369,7 +423,7 @@ class Runtime:
             foreground = data.get('foreground', '').lower()
             if foreground and 'blender' not in foreground:
                 return 1/30
-            self.apply_zoom(float(data.get('lt', 0)))
+            self.apply_zoom(axis(data.get('lt', 0)))
             pressed = lambda key: data.get(key, False) and not self.previous_buttons.get(key, False)
             shading_direction = int(bool(pressed('rb'))) - int(bool(pressed('lb')))
             if shading_direction:
@@ -404,7 +458,7 @@ class Runtime:
             else:
                 self.stick_idle_since = None
             sprint = self.sprinting
-            trigger = max(0.0, min(1.0, float(data.get('rt', 0))))
+            trigger = max(0.0, min(1.0, axis(data.get('rt', 0))))
             if trigger > .03:
                 # RT alone drives forward; with the stick, it controls speed in that direction.
                 speed_factor = throttle_factor(trigger)
@@ -440,6 +494,7 @@ class Runtime:
         return 1/60
 
     def apply_zoom(self, value):
+        value = axis(value)
         value = max(0.0, min(1.0, value))
         if value > .03:
             if not getattr(self, 'zoom_active', False):
@@ -485,6 +540,8 @@ def stop():
     runtime, _runtime = _runtime, None
     if runtime:
         runtime.close()
+    if bpy.app.timers.is_registered(timer):
+        bpy.app.timers.unregister(timer)
     _status = 'Stopped'
 
 
@@ -497,6 +554,7 @@ def timer():
     except Exception as exc:
         import traceback
         traceback.print_exc()
+        diagnostic('timer: ' + repr(exc))
         stop()
         _status = 'Stopped: '+str(exc)[:140]
         return None

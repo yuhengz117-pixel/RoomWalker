@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.10 — 2026-10-17
+
+- Fixed a black viewport triggered by dragging Blender's zoom magnifier after RoomWalker set the orbit distance to zero. Use a positive pivot distance and offset the pivot to preserve the first-person eye.
+- Read startup eye coordinates from editable viewport properties rather than a potentially stale view matrix.
+- Reject non-finite viewport/spawn/player coordinates, restore the last valid view on runtime failure, and neutralize malformed controller axes.
+- Stop the navigation timer explicitly and write diagnostic details for unexpected failures.
+- Added viewport regression coverage and documented reproduction/verification in `BUGFIX-viewport-nan.md`.
+- Version 0.1.9 was a local defensive patch and was not publicly released.
+
 ## 0.1.8 — 2026-10-17
 
 - LB / RB cycle viewport shading backward / forward through Wireframe, Solid, Material Preview, and Rendered.
