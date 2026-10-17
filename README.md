@@ -4,7 +4,7 @@
 
 RoomWalker is a small, free, open-source Blender add-on for first-person architectural walkthroughs and spatial design. Walk with gravity and collision detection, switch to flight, control movement speed with the right trigger, and zoom with the left trigger.
 
-**Prototype release · v0.1.8 · MIT license**
+**Prototype release · v0.1.10 · MIT license**
 
 [Download the latest release](https://github.com/yuhengz117-pixel/RoomWalker/releases/latest) · [Report a bug](https://github.com/yuhengz117-pixel/RoomWalker/issues)
 
@@ -33,7 +33,7 @@ When reviewing a large space, switching between orbit navigation and editing int
 
 ## Install
 
-1. Download **roomwalker-0.1.8-macos-arm64.zip** from [Releases](https://github.com/yuhengz117-pixel/RoomWalker/releases/latest). Use the release asset rather than GitHub's generic source archive.
+1. Download **roomwalker-0.1.10-macos-arm64.zip** from [Releases](https://github.com/yuhengz117-pixel/RoomWalker/releases/latest). Use the release asset rather than GitHub's generic source archive.
 2. In Blender, open **Edit → Preferences → Add-ons**.
 3. Open the menu arrow and choose **Install from Disk…**, then select the ZIP.
 4. Enable **RoomWalker — Keyboard & Xbox**.
@@ -134,9 +134,15 @@ Run tests in Blender's Python Console (replace the path with your checkout):
 ```python
 import runpy
 runpy.run_path('/absolute/path/to/RoomWalker/test_roomwalker.py')
+# Run with a 3D View open; temporarily changes and restores that viewport.
+runpy.run_path('/absolute/path/to/RoomWalker/test_roomwalker_view.py')
 ```
 
 The test script loads this checkout without registering the add-on. It creates synthetic collision data and does not modify the scene. Tests cover gravity, floor landing, jumping, thin walls, wall sliding, small/tall steps, ceiling collision, deadzones, flight direction, throttle, L3 activation, and LT zoom. Test results do not replace testing with your actual controller and scene.
+
+The viewport regression script checks first-person eye preservation, a positive orbit distance, editor handoff, repeated zoom operations, and recovery from an invalid distance. It loads this checkout without registering it and restores the viewport in a `finally` block. Stop RoomWalker before running viewport tests.
+
+If navigation stops because invalid coordinates were detected, the last valid view is restored. Diagnostic details are written to Blender's console and, when writable, `roomwalker-errors.log` beside the add-on. Review that log before sharing it.
 
 ## Contributing
 
